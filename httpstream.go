@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"strings"
 
 	"github.com/bradleyfalzon/tlsx"
@@ -56,7 +57,6 @@ func IsHTTP(prefix []byte) int {
 func (h *httpStream) run() {
 
 	var record HTTPStreamRecord
-
 	buf := bufio.NewReader(&h.r)
 
 	for {
@@ -73,11 +73,10 @@ func (h *httpStream) run() {
 			if err == io.EOF {
 				break
 			} else {
-				record.Request = req
+				b, _ := httputil.DumpRequest(req, true)
+				record.Dump = append(record.Dump, b...)
 				record.Net = h.net
 				record.Transport = h.transport
-				//tcpreader.DiscardBytesToEOF(req.Body)
-				//req.Body.Close()
 				metrics.HTTPStreams.PushBack(record)
 			}
 		} else if rType == 2 {
@@ -85,11 +84,10 @@ func (h *httpStream) run() {
 			if err == io.EOF {
 				break
 			} else {
-				record.Response = resp
+				b, _ := httputil.DumpResponse(resp, true)
+				record.Dump = append(record.Dump, b...)
 				record.Net = h.net
 				record.Transport = h.transport
-				//tcpreader.DiscardBytesToEOF(resp.Body)
-				//resp.Body.Close()
 				metrics.HTTPStreams.PushBack(record)
 			}
 		} else {

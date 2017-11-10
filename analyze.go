@@ -41,10 +41,16 @@ Loop:
 				packet.ApplicationLayer().LayerType() == layers.LayerTypeDNS {
 
 				metrics.DNSPacket++
-
-				//dns := packet.ApplicationLayer().(*layers.DNS)
-				//log.Println(dns)
-				// dns
+				dns := packet.ApplicationLayer().(*layers.DNS)
+				for qi, _ := range dns.Questions {
+					name := string(dns.Questions[qi].Name)
+					v, ok := metrics.DNSRequests[name]
+					if !ok {
+						metrics.DNSRequests[name] = 1
+					} else {
+						metrics.DNSRequests[name] = v + 1
+					}
+				}
 
 			} else if packet.TransportLayer().LayerType() == layers.LayerTypeTCP {
 				metrics.TCPPacket++

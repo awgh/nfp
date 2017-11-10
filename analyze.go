@@ -1,18 +1,18 @@
 package nfp
 
 import (
+	"time"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/tcpassembly"
-	"time"
 )
 
 // Analyze - run packet analysis on pcap handle for given duration
-func Analyze(pcap *pcap.Handle, seconds uint64) {
+func Analyze(pcap *pcap.Handle, seconds uint64) NetMetrics {
 
 	var secondsRunning uint64
-	var metrics NetMetrics
 
 	// Set up assembly
 	streamFactory := &HTTPStreamFactory{}
@@ -20,8 +20,10 @@ func Analyze(pcap *pcap.Handle, seconds uint64) {
 	assembler := tcpassembly.NewAssembler(streamPool)
 
 	packetSource := gopacket.NewPacketSource(pcap, pcap.LinkType())
+	packetSource.DecodeOptions.NoCopy = true // we promise not to alter slices (optimization)
+	packetSource.DecodeOptions.Lazy = true   // lazy is evil; evil is good
 	packets := packetSource.Packets()
-	ticker := time.Tick(time.Second)
+	ticker := time.NewTicker(time.Second)
 
 Loop:
 	for {
@@ -35,7 +37,9 @@ Loop:
 				metrics.UnusablePacket++
 				continue
 			}
-			if packet.ApplicationLayer() != nil && packet.ApplicationLayer().LayerType() == layers.LayerTypeDNS {
+			if packet.ApplicationLayer() != nil &&
+				packet.ApplicationLayer().LayerType() == layers.LayerTypeDNS {
+
 				metrics.DNSPacket++
 
 				//dns := packet.ApplicationLayer().(*layers.DNS)
@@ -45,15 +49,20 @@ Loop:
 			} else if packet.TransportLayer().LayerType() == layers.LayerTypeTCP {
 				metrics.TCPPacket++
 				tcp := packet.TransportLayer().(*layers.TCP)
-				assembler.AssembleWithTimestamp(packet.NetworkLayer().NetworkFlow(), tcp, packet.Metadata().Timestamp)
+				assembler.AssembleWithTimestamp(packet.NetworkLayer().NetworkFlow(),
+					tcp, packet.Metadata().Timestamp)
+
 			} else if packet.TransportLayer().LayerType() == layers.LayerTypeUDP {
 				metrics.UDPPacket++
 				//udp := packet.TransportLayer().(*layers.UDP)
+				//udp.
+
 				//log.Println(udp)
 				// udp
+
 			}
 
-		case <-ticker:
+		case <-ticker.C:
 			secondsRunning++
 
 			if seconds > 0 && secondsRunning >= seconds {
@@ -66,5 +75,6 @@ Loop:
 			}
 		}
 	}
-	metrics.Print()
+
+	return metrics
 }

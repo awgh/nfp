@@ -2,10 +2,11 @@ package main
 
 import (
 	"flag"
-	"github.com/awgh/nfp"
-	"github.com/google/gopacket/pcap"
 	"log"
 	"time"
+
+	"github.com/awgh/nfp"
+	"github.com/google/gopacket/pcap"
 )
 
 // Flags
@@ -21,11 +22,13 @@ func main() {
 
 	var handle *pcap.Handle
 	var err error
+	var metrics nfp.NetMetrics
+
 	if *fname != "" {
 		if handle, err = pcap.OpenOffline(*fname); err != nil {
 			log.Fatal("PCAP OpenOffline error:", err)
 		}
-		nfp.Analyze(handle, 0)
+		metrics = nfp.Analyze(handle, 0)
 	} else {
 		inactive, err := pcap.NewInactiveHandle(*iface)
 		if err != nil {
@@ -44,7 +47,8 @@ func main() {
 		}
 		defer handle.Close()
 
-		nfp.Analyze(handle, *seconds)
+		metrics = nfp.Analyze(handle, *seconds)
 	}
 
+	metrics.Print()
 }

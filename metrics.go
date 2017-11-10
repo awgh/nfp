@@ -1,11 +1,9 @@
 package nfp
 
 import (
-	"fmt"
-	"log"
-	"strconv"
-
 	"container/list"
+	"fmt"
+	"strconv"
 
 	"github.com/bradleyfalzon/tlsx"
 	"github.com/google/gopacket"
@@ -26,6 +24,8 @@ type NetMetrics struct {
 	DNSPacket      uint64
 	TCPPacket      uint64
 	UDPPacket      uint64
+	IPSecAHPacket  uint64
+	IPSecESPPacket uint64
 
 	DNSRequests     map[string]int
 	HTTPStreams     *list.List
@@ -34,30 +34,50 @@ type NetMetrics struct {
 
 // Print this struct
 func (m NetMetrics) Print() {
-	log.Println("Unusable Packets", m.UnusablePacket)
-	log.Println("DNS Packets", m.DNSPacket)
+
+	fmt.Println("---SUMMARY---")
+	fmt.Println("Unusable Packets", m.UnusablePacket)
+	fmt.Println("DNS Packets", m.DNSPacket)
+	fmt.Println("TCP Packets", m.TCPPacket)
+	fmt.Println("UDP Packets", m.UDPPacket)
+	fmt.Println("TLS/SSL Sessions", m.TLSClientHellos.Len())
+	fmt.Println("HTTP Sessions", m.HTTPStreams.Len())
+	fmt.Println("IPSec AH Packets", m.IPSecAHPacket)
+	fmt.Println("IPSec ESP Packets", m.IPSecESPPacket)
 
 	var db []string
 	for k, v := range m.DNSRequests {
 		db = append(db, k+"|"+strconv.Itoa(v))
 	}
-	fmt.Println(columnize.SimpleFormat(db))
+	fmt.Println("\n---DNS REQUESTS---\n" + columnize.SimpleFormat(db))
 
-	log.Println("TCP Packets", m.TCPPacket)
-	log.Println("UDP Packets", m.UDPPacket)
-	log.Println("TLS/SSL Sessions", m.TLSClientHellos.Len())
+	fmt.Println("\n---TLS SESSIONS---")
 	hi := m.TLSClientHellos.Front()
-	for hi.Next() != nil {
+	for hi != nil && hi.Next() != nil {
 		h := hi.Value.(tlsx.ClientHello)
-		fmt.Println(h.HandshakeVersion, h.SNI, h.CipherSuites)
+		fmt.Println("\n", h.HandshakeVersion, h.SNI)
+		var cb []string
+		var ci int
+		for ci < len(h.CipherSuites) {
+			row := h.CipherSuites[ci].String()
+			for i := 0; i < 4; i++ {
+				ci++
+				if ci < len(h.CipherSuites) {
+					row += "|" + h.CipherSuites[ci].String()
+				} else {
+					break
+				}
+			}
+			cb = append(cb, row)
+		}
+		//fmt.Println(columnize.SimpleFormat(cb))
 		hi = hi.Next()
 	}
 
-	log.Println("HTTP Sessions", m.HTTPStreams.Len())
 	front := m.HTTPStreams.Front()
 	sbi := 0
 	sb := make([]string, m.HTTPStreams.Len())
-	for front.Next() != nil {
+	for front != nil && front.Next() != nil {
 		s := front.Value.(HTTPStreamRecord)
 		sb[sbi] = s.Net.Src().String() + "|" + s.Transport.Src().String() + "|" +
 			s.Net.Dst().String() + "|" + s.Transport.Dst().String()
@@ -67,7 +87,7 @@ func (m NetMetrics) Print() {
 		//}
 		front = front.Next()
 	}
-	fmt.Println(columnize.SimpleFormat(sb))
+	fmt.Println("\n---HTTP SESSIONS---\n" + columnize.SimpleFormat(sb))
 }
 
 type HTTPStreamRecord struct {

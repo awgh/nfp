@@ -33,16 +33,15 @@ Loop:
 			if packet == nil {
 				break Loop
 			}
-			if packet.NetworkLayer() == nil || packet.TransportLayer() == nil {
+			if packet.NetworkLayer() == nil { //|| packet.TransportLayer() == nil {
 				metrics.UnusablePacket++
 				continue
 			}
 			if packet.ApplicationLayer() != nil &&
 				packet.ApplicationLayer().LayerType() == layers.LayerTypeDNS {
-
 				metrics.DNSPacket++
 				dns := packet.ApplicationLayer().(*layers.DNS)
-				for qi, _ := range dns.Questions {
+				for qi := range dns.Questions {
 					name := string(dns.Questions[qi].Name)
 					v, ok := metrics.DNSRequests[name]
 					if !ok {
@@ -51,21 +50,20 @@ Loop:
 						metrics.DNSRequests[name] = v + 1
 					}
 				}
-
-			} else if packet.TransportLayer().LayerType() == layers.LayerTypeTCP {
+			} else if packet.TransportLayer() != nil && packet.TransportLayer().LayerType() == layers.LayerTypeTCP {
 				metrics.TCPPacket++
 				tcp := packet.TransportLayer().(*layers.TCP)
 				assembler.AssembleWithTimestamp(packet.NetworkLayer().NetworkFlow(),
 					tcp, packet.Metadata().Timestamp)
 
-			} else if packet.TransportLayer().LayerType() == layers.LayerTypeUDP {
+			} else if _, ok := packet.Layer(layers.LayerTypeIPSecAH).(*layers.IPSecAH); ok {
+				metrics.IPSecAHPacket++
+			} else if _, ok := packet.Layer(layers.LayerTypeIPSecESP).(*layers.IPSecESP); ok {
+				metrics.IPSecESPPacket++
+			} else if packet.TransportLayer() != nil && packet.TransportLayer().LayerType() == layers.LayerTypeUDP {
 				metrics.UDPPacket++
 				//udp := packet.TransportLayer().(*layers.UDP)
-				//udp.
-
-				//log.Println(udp)
-				// udp
-
+				//layers.LayerTypeIPSecAH
 			}
 
 		case <-ticker.C:
